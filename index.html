@@ -127,8 +127,8 @@
 <p class="status" id="status">請點擊拍照開始</p>
 
 <script>
-  const GAS_URL = '你的_Google_Apps_Script_網址';
-  const LIFF_ID = '你的_LIFF_ID';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwXZN5HGrN7eyj_MUsvcSmjF0OpC07JRUJsQhytiUBBU6M3axTVVViNY886MbPn5Nfvwg/exec';
+  const LIFF_ID = '2009652153-mnWgVOub';
 
   var photos = [];
   var sessionData = {};
@@ -195,7 +195,6 @@
       document.getElementById('status').textContent = '⚠️ 請先拍照';
       return;
     }
-
     document.getElementById('btn-upload').disabled = true;
     document.getElementById('btn-camera').disabled = true;
     document.getElementById('progress-bar').style.display = 'block';
@@ -265,17 +264,11 @@
   }
 
   async function nextGroup() {
-    if (photos.length > 0) {
-      document.getElementById('status').textContent = '通知機器人切換下一組...';
-    }
     await notifyBot('next_group', photos.length);
     liff.closeWindow();
   }
 
   async function endSession() {
-    if (photos.length > 0) {
-      document.getElementById('status').textContent = '結束中...';
-    }
     await notifyBot('end_session', photos.length);
     liff.closeWindow();
   }
