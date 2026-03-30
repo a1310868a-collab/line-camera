@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LINE 拍照備份</title>
+  <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: sans-serif;
+      background: #FFF5F9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 20px;
+    }
+    h2 { color: #D4607E; margin-bottom: 8px; font-size: 22px; }
+    .subtitle { color: #999; font-size: 14px; margin-bottom: 30px; }
+    .info-box {
+      background: white;
+      border-radius: 16px;
+      padding: 16px 20px;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .info-box p { font-size: 14px; color: #555; line-height: 1.8; }
+    .info-box span { color: #D4607E; font-weight: bold; }
+    .btn {
+      width: 100%;
+      max-width: 400px;
+      padding: 16px;
+      border: none;
+      border-radius: 50px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-bottom: 14px;
+      transition: opacity 0.2s;
+    }
+    .btn:active { opacity: 0.75; }
+    .btn-camera { background: #FFB5C8; color: #D4607E; }
+    .btn-next   { background: #B5EAD7; color: #3A9A72; }
+    .btn-end    { background: #FFDAC1; color: #D07030; }
+    .btn-upload { background: #C7CEEA; color: #5A65B5; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .preview-area {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .preview-area img {
+      width: calc(33% - 6px);
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 2px solid #FFB5C8;
+    }
+    .count-badge {
+      background: #FFB5C8;
+      color: #D4607E;
+      border-radius: 50px;
+      padding: 6px 18px;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 16px;
+    }
+    .status {
+      color: #888;
+      font-size: 13px;
+      margin-top: 8px;
+      text-align: center;
+      min-height: 20px;
+    }
+    .progress-bar {
+      width: 100%;
+      max-width: 400px;
+      background: #eee;
+      border-radius: 50px;
+      height: 10px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-fill {
+      background: #FFB5C8;
+      height: 100%;
+      border-radius: 50px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+    #file-input { display: none; }
+  </style>
+</head>
+<body>
+
+<h2>📷 LINE 拍照備份</h2>
+<p class="subtitle">照片將自動存入 Google Drive</p>
+
+<div class="info-box">
+  <p>📌 地區：<span id="area-name">讀取中...</span></p>
+  <p>🔢 組別：<span id="group-name">讀取中...</span></p>
+  <p>📂 資料夾：<span id="folder-name">讀取中...</span></p>
+</div>
+
+<div class="count-badge" id="count-badge">已拍 0 張</div>
+
+<div class="preview-area" id="preview-area"></div>
+
+<div class="progress-bar" id="progress-bar">
+  <div class="progress-fill" id="progress-fill"></div>
+</div>
+
+<button class="btn btn-camera" id="btn-camera" onclick="openCamera()">📷 拍照 / 選取照片</button>
+<button class="btn btn-upload" id="btn-upload" onclick="uploadAll()" style="display:none">⬆️ 上傳全部照片</button>
+<button class="btn btn-next" id="btn-next" onclick="nextGroup()">➡️ 下一組</button>
+<button class="btn btn-end" id="btn-end" onclick="endSession()">⏹ 結束</button>
+
+<input type="file" id="file-input" accept="image/*" capture="environment" multiple onchange="handleFiles(this.files)">
+
+<p class="status" id="status">請點擊拍照開始</p>
+
+<script>
+  const GAS_URL = '你的_Google_Apps_Script_網址';
+  const LIFF_ID = '你的_LIFF_ID';
+
+  var photos = [];
+  var sessionData = {};
+
+  async function initLiff() {
+    try {
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+      var profile = await liff.getProfile();
+      var userId = profile.userId;
+
+      var params = new URLSearchParams(window.location.search);
+      sessionData = {
+        userId: userId,
+        workAreaName: params.get('area') || '未設定地區',
+        group: params.get('group') || '1',
+        folderName: params.get('folder') || '',
+        today: params.get('today') || ''
+      };
+
+      document.getElementById('area-name').textContent = sessionData.workAreaName;
+      document.getElementById('group-name').textContent = '第 ' + sessionData.group + ' 組';
+      document.getElementById('folder-name').textContent = sessionData.folderName || '待建立';
+      document.getElementById('status').textContent = '準備好了！請點擊拍照';
+
+    } catch(err) {
+      document.getElementById('status').textContent = '初始化失敗：' + err.message;
+    }
+  }
+
+  function openCamera() {
+    document.getElementById('file-input').click();
+  }
+
+  function handleFiles(files) {
+    for (var i = 0; i < files.length; i++) {
+      photos.push(files[i]);
+      addPreview(files[i]);
+    }
+    updateCount();
+    document.getElementById('btn-upload').style.display = 'block';
+    document.getElementById('status').textContent = '已選取 ' + photos.length + ' 張，點擊上傳';
+  }
+
+  function addPreview(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = document.createElement('img');
+      img.src = e.target.result;
+      document.getElementById('preview-area').appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function updateCount() {
+    document.getElementById('count-badge').textContent = '已拍 ' + photos.length + ' 張';
+  }
+
+  async function uploadAll() {
+    if (photos.length === 0) {
+      document.getElementById('status').textContent = '⚠️ 請先拍照';
+      return;
+    }
+
+    document.getElementById('btn-upload').disabled = true;
+    document.getElementById('btn-camera').disabled = true;
+    document.getElementById('progress-bar').style.display = 'block';
+
+    for (var i = 0; i < photos.length; i++) {
+      document.getElementById('status').textContent = '上傳中 ' + (i+1) + ' / ' + photos.length + ' 張...';
+      var pct = Math.round(((i+1) / photos.length) * 100);
+      document.getElementById('progress-fill').style.width = pct + '%';
+      await uploadPhoto(photos[i], i + 1);
+    }
+
+    document.getElementById('status').textContent = '✅ 全部上傳完成！共 ' + photos.length + ' 張';
+    document.getElementById('btn-upload').style.display = 'none';
+    document.getElementById('btn-upload').disabled = false;
+    document.getElementById('btn-camera').disabled = false;
+
+    await notifyBot('upload_done', photos.length);
+  }
+
+  async function uploadPhoto(file, index) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = async function(e) {
+        var base64 = e.target.result.split(',')[1];
+        try {
+          await fetch(GAS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'upload_photo',
+              userId: sessionData.userId,
+              folderName: sessionData.folderName,
+              today: sessionData.today,
+              workAreaName: sessionData.workAreaName,
+              group: sessionData.group,
+              index: index,
+              imageData: base64
+            })
+          });
+        } catch(err) {
+          console.log('Upload error:', err);
+        }
+        resolve();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function notifyBot(action, count) {
+    try {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: action,
+          userId: sessionData.userId,
+          folderName: sessionData.folderName,
+          today: sessionData.today,
+          workAreaName: sessionData.workAreaName,
+          group: sessionData.group,
+          count: count || photos.length
+        })
+      });
+    } catch(err) {
+      console.log('Notify error:', err);
+    }
+  }
+
+  async function nextGroup() {
+    if (photos.length > 0) {
+      document.getElementById('status').textContent = '通知機器人切換下一組...';
+    }
+    await notifyBot('next_group', photos.length);
+    liff.closeWindow();
+  }
+
+  async function endSession() {
+    if (photos.length > 0) {
+      document.getElementById('status').textContent = '結束中...';
+    }
+    await notifyBot('end_session', photos.length);
+    liff.closeWindow();
+  }
+
+  initLiff();
+</script>
+</body>
+</html>
