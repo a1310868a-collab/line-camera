@@ -18,17 +18,6 @@
     }
     h2 { color: #D4607E; margin-bottom: 6px; font-size: 20px; }
     .subtitle { color: #999; font-size: 13px; margin-bottom: 20px; }
-    .info-box {
-      background: white;
-      border-radius: 16px;
-      padding: 14px 18px;
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 14px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    }
-    .info-box p { font-size: 13px; color: #555; line-height: 2; }
-    .info-box span { color: #D4607E; font-weight: bold; }
     .gps-box {
       background: #E8F8F0;
       border-radius: 12px;
@@ -38,7 +27,8 @@
       margin-bottom: 14px;
       font-size: 12px;
       color: #3A9A72;
-      line-height: 1.6;
+      line-height: 1.8;
+      white-space: pre-line;
     }
     .area-box {
       background: #FFF0C0;
@@ -49,7 +39,22 @@
       margin-bottom: 14px;
       font-size: 12px;
       color: #A07800;
+      line-height: 1.8;
+      display: none;
+      white-space: pre-line;
+    }
+    .debug-box {
+      background: #F0F0F0;
+      border-radius: 12px;
+      padding: 10px 16px;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 14px;
+      font-size: 11px;
+      color: #555;
       line-height: 1.6;
+      white-space: pre-line;
+      word-break: break-all;
       display: none;
     }
     .btn {
@@ -131,6 +136,7 @@
       text-align: center;
       min-height: 18px;
       padding: 0 10px;
+      white-space: pre-line;
     }
     #file-input { display: none; }
   </style>
@@ -140,14 +146,11 @@
 <h2>📷 LINE 拍照備份</h2>
 <p class="subtitle">照片將依 GPS 自動存入對應地區</p>
 
-<div class="gps-box" id="gps-box">
-  📡 正在讀取 GPS 座標...
-</div>
-
+<div class="gps-box" id="gps-box">📡 正在讀取 GPS 座標...</div>
 <div class="area-box" id="area-box"></div>
+<div class="debug-box" id="debug-box"></div>
 
 <div class="count-badge" id="count-badge">已拍 0 張</div>
-
 <div class="preview-area" id="preview-area"></div>
 
 <div class="progress-bar" id="progress-bar">
@@ -163,8 +166,8 @@
 <p class="status" id="status">等待 GPS 讀取中...</p>
 
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwXZN5HGrN7eyj_MUsvcSmjF0OpC07JRUJsQhytiUBBU6M3axTVVViNY886MbPn5Nfvwg/exec';
-  const LIFF_ID = '2009652153-mnWgVOub';
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbw-IIdB05JNcE6ltKy8YrTYQ17YhWMvt14UXn33mrFdIQf8LIYaf62VMI0wa04iBqGH/exec';
+  var LIFF_ID = '2009652153-mnWgVOub';
 
   var photos = [];
   var photoLocations = [];
@@ -172,8 +175,19 @@
   var sessionData = {};
   var uploadGroupCount = 0;
 
+  function showDebug(msg) {
+    var box = document.getElementById('debug-box');
+    box.style.display = 'block';
+    box.textContent = msg;
+  }
+
+  function setStatus(msg) {
+    document.getElementById('status').textContent = msg;
+  }
+
   async function initLiff() {
     try {
+      setStatus('初始化 LIFF...');
       await liff.init({ liffId: LIFF_ID });
       if (!liff.isLoggedIn()) {
         liff.login();
@@ -181,20 +195,20 @@
       }
       var profile = await liff.getProfile();
       sessionData.userId = profile.userId;
-      document.getElementById('status').textContent = '已登入，正在讀取 GPS...';
+      setStatus('已登入，正在讀取 GPS...');
       startWatchingLocation();
     } catch(err) {
-      document.getElementById('status').textContent = '初始化失敗：' + err.message;
+      setStatus('初始化失敗：' + err.message);
+      showDebug('LIFF 錯誤：' + err.toString());
     }
   }
 
   function startWatchingLocation() {
     if (!navigator.geolocation) {
-      document.getElementById('gps-box').textContent = '⚠️ 此裝置不支援 GPS';
-      document.getElementById('status').textContent = '無法讀取 GPS';
+      document.getElementById('gps-box').textContent = '⚠️ 此裝置不支援 GPS\n照片將存入「其他」資料夾';
+      setStatus('無 GPS，仍可拍照');
       return;
     }
-
     navigator.geolocation.watchPosition(
       function(position) {
         currentLocation = {
@@ -206,14 +220,14 @@
           '📍 GPS 已讀取\n' +
           '緯度：' + currentLocation.lat + '\n' +
           '經度：' + currentLocation.lng + '\n' +
-          '精度：±' + currentLocation.accuracy + ' 公尺';
-        document.getElementById('status').textContent = '準備好了！請點擊拍照';
-        document.getElementById('btn-camera').disabled = false;
+          '精度：+/-' + currentLocation.accuracy + ' 公尺';
+        setStatus('準備好了！請點擊拍照');
       },
       function(err) {
-        document.getElementById('gps-box').textContent = '⚠️ GPS 讀取失敗：' + err.message + '\n照片將存入一般備份資料夾';
-        document.getElementById('status').textContent = '無 GPS，仍可拍照';
-        document.getElementById('btn-camera').disabled = false;
+        document.getElementById('gps-box').textContent =
+          '⚠️ GPS 讀取失敗\n' + err.message + '\n照片將存入「其他」資料夾';
+        setStatus('無 GPS，仍可拍照');
+        showDebug('GPS 錯誤 code:' + err.code + ' msg:' + err.message);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
@@ -235,7 +249,7 @@
     }
     updateCount();
     document.getElementById('btn-upload').style.display = 'block';
-    document.getElementById('status').textContent = '已選取 ' + photos.length + ' 張，點擊上傳';
+    setStatus('已選取 ' + photos.length + ' 張，點擊上傳');
   }
 
   function addPreview(file, location) {
@@ -261,38 +275,39 @@
     document.getElementById('count-badge').textContent = '已拍 ' + photos.length + ' 張';
   }
 
+  function getToday() {
+    var now = new Date();
+    var y = now.getFullYear();
+    var m = String(now.getMonth() + 1).padStart(2, '0');
+    var d = String(now.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+
   async function uploadAll() {
     if (photos.length === 0) {
-      document.getElementById('status').textContent = '⚠️ 請先拍照';
+      setStatus('⚠️ 請先拍照');
       return;
     }
-
     uploadGroupCount++;
     document.getElementById('btn-upload').disabled = true;
     document.getElementById('btn-camera').disabled = true;
     document.getElementById('progress-bar').style.display = 'block';
     document.getElementById('area-box').style.display = 'none';
 
-    var today = new Date().toLocaleDateString('zh-TW', {
-      timeZone: 'Asia/Taipei',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).replace(/\//g, '-');
+    var today = getToday();
 
     for (var i = 0; i < photos.length; i++) {
-      document.getElementById('status').textContent = '上傳中 ' + (i+1) + ' / ' + photos.length + ' 張...';
+      setStatus('上傳中 ' + (i+1) + ' / ' + photos.length + ' 張...');
       var pct = Math.round(((i+1) / photos.length) * 100);
       document.getElementById('progress-fill').style.width = pct + '%';
       await uploadPhoto(photos[i], i + 1, photoLocations[i], today);
     }
 
-    document.getElementById('status').textContent = '✅ 第 ' + uploadGroupCount + ' 組上傳完成！共 ' + photos.length + ' 張';
+    setStatus('✅ 第 ' + uploadGroupCount + ' 組完成！共 ' + photos.length + ' 張');
     document.getElementById('btn-upload').style.display = 'none';
     document.getElementById('btn-upload').disabled = false;
     document.getElementById('btn-camera').disabled = false;
 
-    // 清空照片準備下一組
     photos = [];
     photoLocations = [];
     document.getElementById('preview-area').innerHTML = '';
@@ -306,32 +321,51 @@
       var reader = new FileReader();
       reader.onload = async function(e) {
         var base64 = e.target.result.split(',')[1];
+        var payload = {
+          action: 'upload_photo',
+          userId: sessionData.userId,
+          index: index,
+          groupCount: uploadGroupCount,
+          today: today,
+          imageData: base64,
+          photoLat: location ? location.lat : null,
+          photoLng: location ? location.lng : null
+        };
+        showDebug('上傳第' + index + '張\nGPS: ' + payload.photoLat + ', ' + payload.photoLng + '\n用戶ID: ' + payload.userId);
         try {
-          var result = await fetch(GAS_URL, {
+          var response = await fetch(GAS_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'upload_photo',
-              userId: sessionData.userId,
-              index: index,
-              groupCount: uploadGroupCount,
-              today: today,
-              imageData: base64,
-              photoLat: location ? location.lat : null,
-              photoLng: location ? location.lng : null
-            })
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify(payload)
           });
-          var data = await result.json();
-          if (data.areaName) {
-            document.getElementById('area-box').style.display = 'block';
-            document.getElementById('area-box').textContent =
-              '📌 已匹配地區：' + data.areaName + '\n' +
-              '📏 距離：' + data.distance + ' 公尺';
+          var text = await response.text();
+          showDebug('伺服器回應：\n' + text);
+          try {
+            var data = JSON.parse(text);
+            if (data.areaName) {
+              document.getElementById('area-box').style.display = 'block';
+              document.getElementById('area-box').textContent =
+                '📌 已匹配地區：' + data.areaName + '\n' +
+                '📏 距離：' + data.distance + ' 公尺\n' +
+                '📂 ' + data.folderName;
+            } else {
+              document.getElementById('area-box').style.display = 'block';
+              document.getElementById('area-box').textContent =
+                '📂 存入「其他」資料夾\n' + (data.folderName || '');
+            }
+          } catch(pe) {
+            showDebug('解析回應失敗：' + pe.message + '\n原始回應：' + text);
           }
+          resolve(true);
         } catch(err) {
-          console.log('Upload error:', err);
+          showDebug('上傳失敗：' + err.toString());
+          setStatus('上傳失敗：' + err.message);
+          resolve(false);
         }
-        resolve();
+      };
+      reader.onerror = function() {
+        showDebug('讀取檔案失敗');
+        resolve(false);
       };
       reader.readAsDataURL(file);
     });
@@ -341,7 +375,7 @@
     try {
       await fetch(GAS_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: action,
           userId: sessionData.userId,
@@ -349,11 +383,12 @@
         })
       });
     } catch(err) {
-      console.log('Notify error:', err);
+      showDebug('通知失敗：' + err.toString());
     }
   }
 
   async function endSession() {
+    setStatus('結束中...');
     await notifyBot('end_session', uploadGroupCount);
     liff.closeWindow();
   }
