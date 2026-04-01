@@ -84,7 +84,7 @@
     }
     .btn:active { opacity: 0.75; }
     .btn-camera { background: #FFB5C8; color: #D4607E; }
-    .btn-prev   { background: #C7CEEA; color: #5A65B5; display: none; }
+    .btn-prev   { background: #C7CEEA; color: #5A65B5; }
     .btn-next   { background: #B5EAD7; color: #3A9A72; }
     .btn-end    { background: #FFDAC1; color: #D07030; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -130,10 +130,10 @@
       padding: 2px 5px;
       font-weight: bold;
     }
-    .tag-wait     { background: rgba(255,200,0,0.85); color: #7A5000; }
+    .tag-wait      { background: rgba(255,200,0,0.85); color: #7A5000; }
     .tag-uploading { background: rgba(0,120,255,0.85); color: white; }
-    .tag-done     { background: rgba(0,180,80,0.85); color: white; }
-    .tag-fail     { background: rgba(220,0,0,0.85); color: white; }
+    .tag-done      { background: rgba(0,180,80,0.85); color: white; }
+    .tag-fail      { background: rgba(220,0,0,0.85); color: white; }
     .count-badge {
       background: #FFB5C8;
       color: #D4607E;
@@ -189,7 +189,7 @@
 </div>
 
 <button class="btn btn-camera" id="btn-camera" onclick="openCamera()">📷 拍照 / 選取照片</button>
-<button class="btn btn-prev" id="btn-prev" onclick="prevGroup()">⬅️ 上一組</button>
+<button class="btn btn-prev" id="btn-prev" onclick="prevGroup()" style="display:none">⬅️ 上一組</button>
 <button class="btn btn-next" id="btn-next" onclick="nextGroup()">➡️ 下一組</button>
 <button class="btn btn-end" id="btn-end" onclick="endSession()">⏹ 結束</button>
 
@@ -348,9 +348,7 @@
       var photoIndex = totalPhotoCount;
       var file = files[i];
       var currentGroup = groupCount;
-
       addPreview(file, photoIndex, currentGroup);
-
       uploadQueue.push({
         file: file,
         index: photoIndex,
@@ -364,11 +362,7 @@
     updateCount();
     updateQueueBox();
     setStatus('已加入 ' + files.length + ' 張\n後台自動上傳中，可繼續拍照');
-
-    if (!isUploading) {
-      processQueue();
-    }
-
+    if (!isUploading) { processQueue(); }
     document.getElementById('file-input').value = '';
   }
 
@@ -477,52 +471,4 @@
           }
           resolve(true);
         } catch(err) {
-          showDebug('上傳失敗：' + err.toString());
-          resolve(false);
-        }
-      };
-      reader.onerror = function() { resolve(false); };
-      reader.readAsDataURL(item.file);
-    });
-  }
-
-  function prevGroup() {
-    if (groupCount <= 1) return;
-    groupCount--;
-    updateCount();
-    updatePrevButton();
-    setStatus('已切換回第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
-    document.getElementById('area-box').style.display = 'none';
-  }
-
-  function nextGroup() {
-    groupCount++;
-    updateCount();
-    updatePrevButton();
-    setStatus('已切換到第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
-    document.getElementById('area-box').style.display = 'none';
-  }
-
-  async function endSession() {
-    setStatus('結束中...');
-    try {
-      await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'end_session',
-          userId: sessionData.userId,
-          groupCount: groupCount,
-          totalCount: totalPhotoCount
-        })
-      });
-    } catch(err) {
-      showDebug('通知失敗：' + err.toString());
-    }
-    liff.closeWindow();
-  }
-
-  initLiff();
-</script>
-</body>
-</html>
+          showDebug('上傳失敗：'
