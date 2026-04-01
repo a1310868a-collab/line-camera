@@ -43,6 +43,19 @@
       display: none;
       white-space: pre-line;
     }
+    .upload-queue-box {
+      background: #E8F0FF;
+      border-radius: 12px;
+      padding: 10px 16px;
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: #3A5AB5;
+      line-height: 1.8;
+      display: none;
+      white-space: pre-line;
+    }
     .debug-box {
       background: #F0F0F0;
       border-radius: 12px;
@@ -71,7 +84,7 @@
     }
     .btn:active { opacity: 0.75; }
     .btn-camera { background: #FFB5C8; color: #D4607E; }
-    .btn-upload { background: #C7CEEA; color: #5A65B5; display: none; }
+    .btn-next   { background: #B5EAD7; color: #3A9A72; }
     .btn-end    { background: #FFDAC1; color: #D07030; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .preview-area {
@@ -93,16 +106,19 @@
       border-radius: 10px;
       border: 2px solid #FFB5C8;
     }
-    .preview-item .gps-tag {
+    .preview-item .status-tag {
       position: absolute;
       bottom: 4px;
       left: 4px;
-      background: rgba(0,0,0,0.55);
-      color: white;
-      font-size: 9px;
       border-radius: 4px;
-      padding: 2px 4px;
+      padding: 2px 5px;
+      font-size: 9px;
+      font-weight: bold;
     }
+    .tag-wait { background: rgba(255,200,0,0.85); color: #7A5000; }
+    .tag-uploading { background: rgba(0,120,255,0.85); color: white; }
+    .tag-done { background: rgba(0,180,80,0.85); color: white; }
+    .tag-fail { background: rgba(220,0,0,0.85); color: white; }
     .count-badge {
       background: #FFB5C8;
       color: #D4607E;
@@ -112,21 +128,20 @@
       font-weight: bold;
       margin-bottom: 14px;
     }
-    .progress-bar {
+    .upload-progress {
       width: 100%;
       max-width: 400px;
       background: #eee;
       border-radius: 50px;
-      height: 10px;
+      height: 8px;
       margin-bottom: 12px;
       overflow: hidden;
-      display: none;
     }
-    .progress-fill {
-      background: #FFB5C8;
+    .upload-fill {
+      background: #B5EAD7;
       height: 100%;
       border-radius: 50px;
-      transition: width 0.3s;
+      transition: width 0.5s;
       width: 0%;
     }
     .status {
@@ -148,17 +163,18 @@
 
 <div class="gps-box" id="gps-box">📡 正在讀取 GPS 座標...</div>
 <div class="area-box" id="area-box"></div>
+<div class="upload-queue-box" id="queue-box"></div>
 <div class="debug-box" id="debug-box"></div>
 
 <div class="count-badge" id="count-badge">已拍 0 張</div>
 <div class="preview-area" id="preview-area"></div>
 
-<div class="progress-bar" id="progress-bar">
-  <div class="progress-fill" id="progress-fill"></div>
+<div class="upload-progress">
+  <div class="upload-fill" id="upload-fill"></div>
 </div>
 
 <button class="btn btn-camera" id="btn-camera" onclick="openCamera()">📷 拍照 / 選取照片</button>
-<button class="btn btn-upload" id="btn-upload" onclick="uploadAll()">⬆️ 上傳全部照片</button>
+<button class="btn btn-next" id="btn-next" onclick="nextGroup()">➡️ 下一組</button>
 <button class="btn btn-end" id="btn-end" onclick="endSession()">⏹ 結束</button>
 
 <input type="file" id="file-input" accept="image/*" capture="environment" multiple onchange="handleFiles(this.files)">
@@ -169,11 +185,19 @@
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbw-IIdB05JNcE6ltKy8YrTYQ17YhWMvt14UXn33mrFdIQf8LIYaf62VMI0wa04iBqGH/exec';
   var LIFF_ID = '2009652153-mnWgVOub';
 
-  var photos = [];
-  var photoLocations = [];
   var currentLocation = null;
   var sessionData = {};
-  var uploadGroupCount = 0;
+  var groupCount = 1;
+  var totalPhotoCount = 0;
+
+  // 上傳佇列
+  var uploadQueue = [];
+  var isUploading = false;
+  var uploadedCount = 0;
+  var failedCount = 0;
+
+  // 照片預覽清單
+  var previewItems = [];
 
   function showDebug(msg) {
     var box = document.getElementById('debug-box');
@@ -185,14 +209,27 @@
     document.getElementById('status').textContent = msg;
   }
 
+  function updateQueueBox() {
+    var total = uploadQueue.length + uploadedCount + failedCount;
+    if (total === 0) {
+      document.getElementById('queue-box').style.display = 'none';
+      return;
+    }
+    document.getElementById('queue-box').style.display = 'block';
+    document.getElementById('queue-box').textContent =
+      '後台上傳狀態\n' +
+      '已完成：' + uploadedCount + ' 張\n' +
+      '等待中：' + uploadQueue.length + ' 張\n' +
+      (failedCount > 0 ? '失敗：' + failedCount + ' 張\n' : '');
+    var pct = total > 0 ? Math.round((uploadedCount + failedCount) / total * 100) : 0;
+    document.getElementById('upload-fill').style.width = pct + '%';
+  }
+
   async function initLiff() {
     try {
       setStatus('初始化 LIFF...');
       await liff.init({ liffId: LIFF_ID });
-      if (!liff.isLoggedIn()) {
-        liff.login();
-        return;
-      }
+      if (!liff.isLoggedIn()) { liff.login(); return; }
       var profile = await liff.getProfile();
       sessionData.userId = profile.userId;
       setStatus('已登入，正在讀取 GPS...');
@@ -227,7 +264,6 @@
         document.getElementById('gps-box').textContent =
           '⚠️ GPS 讀取失敗\n' + err.message + '\n照片將存入「其他」資料夾';
         setStatus('無 GPS，仍可拍照');
-        showDebug('GPS 錯誤 code:' + err.code + ' msg:' + err.message);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
@@ -235,44 +271,6 @@
 
   function openCamera() {
     document.getElementById('file-input').click();
-  }
-
-  function handleFiles(files) {
-    for (var i = 0; i < files.length; i++) {
-      photos.push(files[i]);
-      photoLocations.push(currentLocation ? {
-        lat: currentLocation.lat,
-        lng: currentLocation.lng,
-        accuracy: currentLocation.accuracy
-      } : null);
-      addPreview(files[i], photoLocations[photoLocations.length - 1]);
-    }
-    updateCount();
-    document.getElementById('btn-upload').style.display = 'block';
-    setStatus('已選取 ' + photos.length + ' 張，點擊上傳');
-  }
-
-  function addPreview(file, location) {
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var item = document.createElement('div');
-      item.className = 'preview-item';
-      var img = document.createElement('img');
-      img.src = e.target.result;
-      item.appendChild(img);
-      if (location) {
-        var tag = document.createElement('div');
-        tag.className = 'gps-tag';
-        tag.textContent = location.lat + ',' + location.lng;
-        item.appendChild(tag);
-      }
-      document.getElementById('preview-area').appendChild(item);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function updateCount() {
-    document.getElementById('count-badge').textContent = '已拍 ' + photos.length + ' 張';
   }
 
   function getToday() {
@@ -283,113 +281,177 @@
     return y + '-' + m + '-' + d;
   }
 
-  async function uploadAll() {
-    if (photos.length === 0) {
-      setStatus('⚠️ 請先拍照');
-      return;
-    }
-    uploadGroupCount++;
-    document.getElementById('btn-upload').disabled = true;
-    document.getElementById('btn-camera').disabled = true;
-    document.getElementById('progress-bar').style.display = 'block';
-    document.getElementById('area-box').style.display = 'none';
-
+  function handleFiles(files) {
     var today = getToday();
+    var location = currentLocation ? {
+      lat: currentLocation.lat,
+      lng: currentLocation.lng
+    } : null;
 
-    for (var i = 0; i < photos.length; i++) {
-      setStatus('上傳中 ' + (i+1) + ' / ' + photos.length + ' 張...');
-      var pct = Math.round(((i+1) / photos.length) * 100);
-      document.getElementById('progress-fill').style.width = pct + '%';
-      await uploadPhoto(photos[i], i + 1, photoLocations[i], today);
+    for (var i = 0; i < files.length; i++) {
+      totalPhotoCount++;
+      var photoIndex = totalPhotoCount;
+      var file = files[i];
+
+      // 加入預覽
+      addPreview(file, photoIndex);
+
+      // 加入上傳佇列
+      uploadQueue.push({
+        file: file,
+        index: photoIndex,
+        location: location,
+        today: today,
+        groupCount: groupCount,
+        previewIndex: previewItems.length - 1
+      });
     }
 
-    setStatus('✅ 第 ' + uploadGroupCount + ' 組完成！共 ' + photos.length + ' 張');
-    document.getElementById('btn-upload').style.display = 'none';
-    document.getElementById('btn-upload').disabled = false;
-    document.getElementById('btn-camera').disabled = false;
+    updateCount();
+    updateQueueBox();
+    setStatus('已加入 ' + files.length + ' 張到上傳佇列\n可繼續拍照，後台自動上傳中');
 
-    photos = [];
-    photoLocations = [];
-    document.getElementById('preview-area').innerHTML = '';
-    document.getElementById('count-badge').textContent = '已拍 0 張';
+    // 啟動後台上傳
+    if (!isUploading) {
+      processQueue();
+    }
 
-    await notifyBot('upload_done', uploadGroupCount);
+    // 清空 file input 讓同一張可重複選
+    document.getElementById('file-input').value = '';
   }
 
-  async function uploadPhoto(file, index, location, today) {
+  function addPreview(file, index) {
+    var reader = new FileReader();
+    var itemIndex = previewItems.length;
+    previewItems.push({index: index, status: 'wait'});
+
+    reader.onload = function(e) {
+      var item = document.createElement('div');
+      item.className = 'preview-item';
+      item.id = 'preview-' + itemIndex;
+
+      var img = document.createElement('img');
+      img.src = e.target.result;
+      item.appendChild(img);
+
+      var tag = document.createElement('div');
+      tag.className = 'status-tag tag-wait';
+      tag.id = 'tag-' + itemIndex;
+      tag.textContent = '等待';
+      item.appendChild(tag);
+
+      document.getElementById('preview-area').appendChild(item);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function updatePreviewTag(itemIndex, status, text) {
+    var tag = document.getElementById('tag-' + itemIndex);
+    if (!tag) return;
+    tag.className = 'status-tag tag-' + status;
+    tag.textContent = text;
+  }
+
+  function updateCount() {
+    document.getElementById('count-badge').textContent =
+      '已拍 ' + totalPhotoCount + ' 張 | 第 ' + groupCount + ' 組';
+  }
+
+  async function processQueue() {
+    if (isUploading || uploadQueue.length === 0) return;
+    isUploading = true;
+
+    while (uploadQueue.length > 0) {
+      var item = uploadQueue.shift();
+      var previewIdx = item.previewIndex;
+      updatePreviewTag(previewIdx, 'uploading', '上傳中');
+
+      var success = await uploadPhoto(item);
+      if (success) {
+        uploadedCount++;
+        updatePreviewTag(previewIdx, 'done', '完成');
+      } else {
+        failedCount++;
+        updatePreviewTag(previewIdx, 'fail', '失敗');
+      }
+      updateQueueBox();
+    }
+
+    isUploading = false;
+    setStatus('✅ 所有照片上傳完成！\n共 ' + uploadedCount + ' 張成功' + (failedCount > 0 ? '，' + failedCount + ' 張失敗' : ''));
+  }
+
+  async function uploadPhoto(item) {
     return new Promise(function(resolve) {
       var reader = new FileReader();
       reader.onload = async function(e) {
         var base64 = e.target.result.split(',')[1];
-        var payload = {
-          action: 'upload_photo',
-          userId: sessionData.userId,
-          index: index,
-          groupCount: uploadGroupCount,
-          today: today,
-          imageData: base64,
-          photoLat: location ? location.lat : null,
-          photoLng: location ? location.lng : null
-        };
-        showDebug('上傳第' + index + '張\nGPS: ' + payload.photoLat + ', ' + payload.photoLng + '\n用戶ID: ' + payload.userId);
         try {
           var response = await fetch(GAS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+              action: 'upload_photo',
+              userId: sessionData.userId,
+              index: item.index,
+              groupCount: item.groupCount,
+              today: item.today,
+              imageData: base64,
+              photoLat: item.location ? item.location.lat : null,
+              photoLng: item.location ? item.location.lng : null
+            })
           });
           var text = await response.text();
-          showDebug('伺服器回應：\n' + text);
           try {
             var data = JSON.parse(text);
             if (data.areaName) {
               document.getElementById('area-box').style.display = 'block';
               document.getElementById('area-box').textContent =
-                '📌 已匹配地區：' + data.areaName + '\n' +
+                '📌 匹配地區：' + data.areaName + '\n' +
                 '📏 距離：' + data.distance + ' 公尺\n' +
                 '📂 ' + data.folderName;
-            } else {
+            } else if (data.folderName) {
               document.getElementById('area-box').style.display = 'block';
               document.getElementById('area-box').textContent =
-                '📂 存入「其他」資料夾\n' + (data.folderName || '');
+                '📂 存入「其他」資料夾\n' + data.folderName;
             }
           } catch(pe) {
-            showDebug('解析回應失敗：' + pe.message + '\n原始回應：' + text);
+            showDebug('解析失敗：' + text);
           }
           resolve(true);
         } catch(err) {
           showDebug('上傳失敗：' + err.toString());
-          setStatus('上傳失敗：' + err.message);
           resolve(false);
         }
       };
-      reader.onerror = function() {
-        showDebug('讀取檔案失敗');
-        resolve(false);
-      };
-      reader.readAsDataURL(file);
+      reader.onerror = function() { resolve(false); };
+      reader.readAsDataURL(item.file);
     });
   }
 
-  async function notifyBot(action, groupCount) {
+  function nextGroup() {
+    groupCount++;
+    updateCount();
+    setStatus('已切換到第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
+    document.getElementById('area-box').style.display = 'none';
+  }
+
+  async function endSession() {
+    setStatus('結束中...');
     try {
       await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          action: action,
+          action: 'end_session',
           userId: sessionData.userId,
-          groupCount: groupCount
+          groupCount: groupCount,
+          totalCount: totalPhotoCount
         })
       });
     } catch(err) {
       showDebug('通知失敗：' + err.toString());
     }
-  }
-
-  async function endSession() {
-    setStatus('結束中...');
-    await notifyBot('end_session', uploadGroupCount);
     liff.closeWindow();
   }
 
