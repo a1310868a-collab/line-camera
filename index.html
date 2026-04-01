@@ -471,4 +471,52 @@
           }
           resolve(true);
         } catch(err) {
-          showDebug('上傳失敗：'
+          showDebug('上傳失敗：' + err.toString());
+          resolve(false);
+        }
+      };
+      reader.onerror = function() { resolve(false); };
+      reader.readAsDataURL(item.file);
+    });
+  }
+
+  function prevGroup() {
+    if (groupCount <= 1) return;
+    groupCount--;
+    updateCount();
+    updatePrevButton();
+    setStatus('已切換回第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
+    document.getElementById('area-box').style.display = 'none';
+  }
+
+  function nextGroup() {
+    groupCount++;
+    updateCount();
+    updatePrevButton();
+    setStatus('已切換到第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
+    document.getElementById('area-box').style.display = 'none';
+  }
+
+  async function endSession() {
+    setStatus('結束中...');
+    try {
+      await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'end_session',
+          userId: sessionData.userId,
+          groupCount: groupCount,
+          totalCount: totalPhotoCount
+        })
+      });
+    } catch(err) {
+      showDebug('通知失敗：' + err.toString());
+    }
+    liff.closeWindow();
+  }
+
+  initLiff();
+</script>
+</body>
+</html>
