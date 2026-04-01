@@ -30,6 +30,31 @@
       line-height: 1.8;
       white-space: pre-line;
     }
+    .select-box {
+      width: 100%;
+      max-width: 400px;
+      margin-bottom: 14px;
+    }
+    .select-label {
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 6px;
+      display: block;
+    }
+    .area-select {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 2px solid #FFB5C8;
+      background: white;
+      font-size: 14px;
+      color: #333;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23D4607E' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+    }
+    .area-select:focus { outline: none; border-color: #D4607E; }
     .area-box {
       background: #FFF0C0;
       border-radius: 12px;
@@ -105,11 +130,7 @@
       border: 2px solid #FFB5C8;
       background: #f0f0f0;
     }
-    .preview-item img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
     .status-tag {
       position: absolute;
       bottom: 4px;
@@ -177,6 +198,14 @@
 <p class="subtitle">照片將依 GPS 自動存入對應地區</p>
 
 <div class="gps-box" id="gps-box">📡 正在讀取 GPS 座標...</div>
+
+<div class="select-box">
+  <span class="select-label">📌 選擇地區（可手動指定，否則依 GPS 自動比對）</span>
+  <select class="area-select" id="area-select" onchange="onAreaSelected()">
+    <option value="">自動比對（依 GPS）</option>
+  </select>
+</div>
+
 <div class="area-box" id="area-box"></div>
 <div class="upload-queue-box" id="queue-box"></div>
 <div class="debug-box" id="debug-box"></div>
@@ -198,7 +227,7 @@
 <p class="status" id="status">等待 GPS 讀取中...</p>
 
 <script>
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycby9elolu9rqrV5us_PpowOGvnMZoya7vzEvAU7BOqxMuOtRvYFUSXhJfY8z-V1s7Jju/exec';
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbw-IIdB05JNcE6ltKy8YrTYQ17YhWMvt14UXn33mrFdIQf8LIYaf62VMI0wa04iBqGH/exec';
   var LIFF_ID = '2009652153-mnWgVOub';
 
   var currentLocation = null;
@@ -210,6 +239,7 @@
   var uploadedCount = 0;
   var failedCount = 0;
   var previewItems = [];
+  var selectedArea = '';
 
   function showDebug(msg) {
     var box = document.getElementById('debug-box');
@@ -241,6 +271,17 @@
     document.getElementById('btn-prev').style.display = groupCount > 1 ? 'block' : 'none';
   }
 
+  function onAreaSelected() {
+    selectedArea = document.getElementById('area-select').value;
+    if (selectedArea) {
+      setStatus('已選擇地區：' + selectedArea + '\n點擊拍照開始上傳');
+      syncGroupCount();
+    } else {
+      setStatus('自動比對模式，依 GPS 判斷地區');
+      syncGroupCount();
+    }
+  }
+
   async function initLiff() {
     try {
       setStatus('初始化 LIFF...');
@@ -248,11 +289,38 @@
       if (!liff.isLoggedIn()) { liff.login(); return; }
       var profile = await liff.getProfile();
       sessionData.userId = profile.userId;
-      setStatus('已登入，正在讀取 GPS...');
+      setStatus('已登入，正在載入...');
+      await loadAreaList();
       startWatchingLocation();
     } catch(err) {
       setStatus('初始化失敗：' + err.message);
       showDebug('LIFF 錯誤：' + err.toString());
+    }
+  }
+
+  async function loadAreaList() {
+    try {
+      var response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'get_area_list',
+          userId: sessionData.userId
+        })
+      });
+      var text = await response.text();
+      var data = JSON.parse(text);
+      if (data.areas && data.areas.length > 0) {
+        var select = document.getElementById('area-select');
+        data.areas.forEach(function(area) {
+          var option = document.createElement('option');
+          option.value = area.name;
+          option.textContent = area.name + '（' + area.range + '）';
+          select.appendChild(option);
+        });
+      }
+    } catch(err) {
+      showDebug('載入地區失敗：' + err.toString());
     }
   }
 
@@ -277,19 +345,13 @@
           '經度：' + currentLocation.lng + '\n' +
           '精度：+/-' + currentLocation.accuracy + ' 公尺';
         setStatus('準備好了！請點擊拍照');
-        if (!synced) {
-          synced = true;
-          syncGroupCount();
-        }
+        if (!synced) { synced = true; syncGroupCount(); }
       },
       function(err) {
         document.getElementById('gps-box').textContent =
           '⚠️ GPS 讀取失敗\n' + err.message + '\n照片將存入「其他」資料夾';
         setStatus('無 GPS，仍可拍照');
-        if (!synced) {
-          synced = true;
-          syncGroupCount();
-        }
+        if (!synced) { synced = true; syncGroupCount(); }
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
@@ -297,7 +359,6 @@
 
   async function syncGroupCount() {
     try {
-      setStatus('正在讀取當日組數...');
       var today = getToday();
       var response = await fetch(GAS_URL, {
         method: 'POST',
@@ -306,6 +367,7 @@
           action: 'get_group_count',
           userId: sessionData.userId,
           today: today,
+          selectedArea: selectedArea || null,
           photoLat: currentLocation ? currentLocation.lat : null,
           photoLng: currentLocation ? currentLocation.lng : null
         })
@@ -320,7 +382,6 @@
       setStatus('準備好了！請點擊拍照');
     } catch(err) {
       setStatus('準備好了！請點擊拍照');
-      showDebug('同步組數失敗：' + err.toString());
     }
   }
 
@@ -338,27 +399,22 @@
 
   function handleFiles(files) {
     var today = getToday();
-    var location = currentLocation ? {
-      lat: currentLocation.lat,
-      lng: currentLocation.lng
-    } : null;
-
+    var location = currentLocation ? { lat: currentLocation.lat, lng: currentLocation.lng } : null;
     for (var i = 0; i < files.length; i++) {
       totalPhotoCount++;
       var photoIndex = totalPhotoCount;
-      var file = files[i];
       var currentGroup = groupCount;
-      addPreview(file, photoIndex, currentGroup);
+      addPreview(files[i], photoIndex, currentGroup);
       uploadQueue.push({
-        file: file,
+        file: files[i],
         index: photoIndex,
         location: location,
         today: today,
         groupCount: currentGroup,
+        selectedArea: selectedArea || null,
         previewIndex: previewItems.length - 1
       });
     }
-
     updateCount();
     updateQueueBox();
     setStatus('已加入 ' + files.length + ' 張\n後台自動上傳中，可繼續拍照');
@@ -369,24 +425,19 @@
   function addPreview(file, index, group) {
     var itemIndex = previewItems.length;
     previewItems.push({index: index, status: 'wait'});
-
     var item = document.createElement('div');
     item.className = 'preview-item';
     item.id = 'preview-' + itemIndex;
-
     var tag = document.createElement('div');
     tag.className = 'status-tag tag-wait';
     tag.id = 'tag-' + itemIndex;
     tag.textContent = '讀取中';
     item.appendChild(tag);
-
     var groupTag = document.createElement('div');
     groupTag.className = 'group-tag';
     groupTag.textContent = '第' + group + '組';
     item.appendChild(groupTag);
-
     document.getElementById('preview-area').appendChild(item);
-
     var reader = new FileReader();
     reader.onload = function(e) {
       var img = document.createElement('img');
@@ -414,15 +465,14 @@
     isUploading = true;
     while (uploadQueue.length > 0) {
       var item = uploadQueue.shift();
-      var previewIdx = item.previewIndex;
-      updatePreviewTag(previewIdx, 'uploading', '上傳中');
+      updatePreviewTag(item.previewIndex, 'uploading', '上傳中');
       var success = await uploadPhoto(item);
       if (success) {
         uploadedCount++;
-        updatePreviewTag(previewIdx, 'done', '完成');
+        updatePreviewTag(item.previewIndex, 'done', '完成');
       } else {
         failedCount++;
-        updatePreviewTag(previewIdx, 'fail', '失敗');
+        updatePreviewTag(item.previewIndex, 'fail', '失敗');
       }
       updateQueueBox();
     }
@@ -446,6 +496,7 @@
               groupCount: item.groupCount,
               today: item.today,
               imageData: base64,
+              selectedArea: item.selectedArea,
               photoLat: item.location ? item.location.lat : null,
               photoLng: item.location ? item.location.lng : null
             })
@@ -457,7 +508,7 @@
               document.getElementById('area-box').style.display = 'block';
               document.getElementById('area-box').textContent =
                 '📌 匹配地區：' + data.areaName + '\n' +
-                '📏 距離：' + data.distance + ' 公尺\n' +
+                (data.distance ? '📏 距離：' + data.distance + ' 公尺\n' : '') +
                 '📂 ' + data.folderName + '\n' +
                 '🔢 目前組別：' + (data.currentGroup || '');
             } else if (data.folderName) {
