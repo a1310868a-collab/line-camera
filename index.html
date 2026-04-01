@@ -7,197 +7,156 @@
   <script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #FFF5F9; --card: #ffffff; --text: #333333; --subtext: #999999;
+      --gps-bg: #E8F8F0; --gps-color: #3A9A72;
+      --area-bg: #FFF0C0; --area-color: #A07800;
+      --queue-bg: #E8F0FF; --queue-color: #3A5AB5;
+      --debug-bg: #F0F0F0; --debug-color: #555555;
+      --badge-bg: #FFB5C8; --badge-color: #D4607E;
+      --border: #FFB5C8; --progress-bg: #eeeeee; --progress-fill: #B5EAD7;
+      --history-bg: #F5F5FF; --history-color: #555599;
+    }
+    body.dark {
+      --bg: #1A1A2E; --card: #16213E; --text: #E0E0E0; --subtext: #888888;
+      --gps-bg: #0D2B1F; --gps-color: #5DCCA0;
+      --area-bg: #2B2200; --area-color: #FFD060;
+      --queue-bg: #0D1A3A; --queue-color: #7DA8FF;
+      --debug-bg: #222222; --debug-color: #AAAAAA;
+      --badge-bg: #7A2040; --badge-color: #FFB5C8;
+      --border: #7A2040; --progress-bg: #333333; --progress-fill: #5DCCA0;
+      --history-bg: #1A1A3A; --history-color: #AAAADD;
+    }
     body {
-      font-family: sans-serif;
-      background: #FFF5F9;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
+      font-family: sans-serif; background: var(--bg); color: var(--text);
+      min-height: 100vh; display: flex; flex-direction: column;
+      align-items: center; padding: 20px; transition: background 0.3s, color 0.3s;
     }
-    h2 { color: #D4607E; margin-bottom: 6px; font-size: 20px; }
-    .subtitle { color: #999; font-size: 13px; margin-bottom: 20px; }
+    .top-bar {
+      width: 100%; max-width: 400px; display: flex;
+      justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    h2 { color: #D4607E; font-size: 20px; }
+    .dark-toggle {
+      background: none; border: 2px solid var(--border); border-radius: 50px;
+      padding: 4px 12px; font-size: 13px; cursor: pointer; color: var(--text);
+    }
+    .subtitle { color: var(--subtext); font-size: 13px; margin-bottom: 20px; }
     .gps-box {
-      background: #E8F8F0;
-      border-radius: 12px;
-      padding: 10px 16px;
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 14px;
-      font-size: 12px;
-      color: #3A9A72;
-      line-height: 1.8;
-      white-space: pre-line;
+      background: var(--gps-bg); border-radius: 12px; padding: 10px 16px;
+      width: 100%; max-width: 400px; margin-bottom: 14px; font-size: 12px;
+      color: var(--gps-color); line-height: 1.8; white-space: pre-line;
     }
-    .select-box {
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 14px;
-    }
-    .select-label {
-      font-size: 12px;
-      color: #555;
-      margin-bottom: 6px;
-      display: block;
-    }
+    #map-container { width: 100%; max-width: 400px; margin-bottom: 14px; display: none; }
+    #map-container .map-label { font-size: 12px; color: var(--subtext); margin-bottom: 6px; }
+    #map { width: 100%; height: 200px; border-radius: 12px; border: 2px solid var(--border); overflow: hidden; }
+    .select-box { width: 100%; max-width: 400px; margin-bottom: 14px; }
+    .select-label { font-size: 12px; color: var(--subtext); margin-bottom: 6px; display: block; }
     .area-select {
-      width: 100%;
-      padding: 12px 16px;
-      border-radius: 12px;
-      border: 2px solid #FFB5C8;
-      background: white;
-      font-size: 14px;
-      color: #333;
-      appearance: none;
+      width: 100%; padding: 12px 16px; border-radius: 12px; border: 2px solid var(--border);
+      background: var(--card); color: var(--text); font-size: 14px; appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23D4607E' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 16px center;
+      background-repeat: no-repeat; background-position: right 16px center;
     }
     .area-select:focus { outline: none; border-color: #D4607E; }
     .area-box {
-      background: #FFF0C0;
-      border-radius: 12px;
-      padding: 10px 16px;
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 14px;
-      font-size: 12px;
-      color: #A07800;
-      line-height: 1.8;
-      display: none;
-      white-space: pre-line;
+      background: var(--area-bg); border-radius: 12px; padding: 10px 16px;
+      width: 100%; max-width: 400px; margin-bottom: 14px; font-size: 12px;
+      color: var(--area-color); line-height: 1.8; display: none; white-space: pre-line;
     }
     .upload-queue-box {
-      background: #E8F0FF;
-      border-radius: 12px;
-      padding: 10px 16px;
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 14px;
-      font-size: 12px;
-      color: #3A5AB5;
-      line-height: 1.8;
-      display: none;
-      white-space: pre-line;
+      background: var(--queue-bg); border-radius: 12px; padding: 10px 16px;
+      width: 100%; max-width: 400px; margin-bottom: 14px; font-size: 12px;
+      color: var(--queue-color); line-height: 1.8; display: none; white-space: pre-line;
     }
     .debug-box {
-      background: #F0F0F0;
-      border-radius: 12px;
-      padding: 10px 16px;
-      width: 100%;
-      max-width: 400px;
-      margin-bottom: 14px;
-      font-size: 11px;
-      color: #555;
-      line-height: 1.6;
-      white-space: pre-line;
-      word-break: break-all;
-      display: none;
+      background: var(--debug-bg); border-radius: 12px; padding: 10px 16px;
+      width: 100%; max-width: 400px; margin-bottom: 14px; font-size: 11px;
+      color: var(--debug-color); line-height: 1.6; white-space: pre-line;
+      word-break: break-all; display: none;
+    }
+    .history-box {
+      background: var(--history-bg); border-radius: 12px; padding: 10px 16px;
+      width: 100%; max-width: 400px; margin-bottom: 14px; font-size: 12px;
+      color: var(--history-color); line-height: 1.8; display: none; white-space: pre-line;
+    }
+    .history-box a { color: #D4607E; word-break: break-all; }
+    .offline-banner {
+      background: #7730AA; color: white; border-radius: 12px; padding: 8px 16px;
+      width: 100%; max-width: 400px; margin-bottom: 14px; font-size: 12px;
+      text-align: center; display: none;
     }
     .btn {
-      width: 100%;
-      max-width: 400px;
-      padding: 14px;
-      border: none;
-      border-radius: 50px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-bottom: 12px;
-      transition: opacity 0.2s;
+      width: 100%; max-width: 400px; padding: 14px; border: none; border-radius: 50px;
+      font-size: 16px; font-weight: bold; cursor: pointer; margin-bottom: 12px; transition: opacity 0.2s;
     }
     .btn:active { opacity: 0.75; }
-    .btn-camera { background: #FFB5C8; color: #D4607E; }
-    .btn-prev   { background: #C7CEEA; color: #5A65B5; }
-    .btn-next   { background: #B5EAD7; color: #3A9A72; }
-    .btn-end    { background: #FFDAC1; color: #D07030; }
+    .btn-camera  { background: #FFB5C8; color: #D4607E; }
+    .btn-retry   { background: #FFD9D9; color: #C03030; }
+    .btn-prev    { background: #C7CEEA; color: #5A65B5; }
+    .btn-next    { background: #B5EAD7; color: #3A9A72; }
+    .btn-end     { background: #FFDAC1; color: #D07030; }
+    .btn-history { background: var(--history-bg); color: var(--history-color); border: 1px solid var(--border); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .preview-area {
-      width: 100%;
-      max-width: 400px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 14px;
+      width: 100%; max-width: 400px; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;
     }
     .preview-item {
-      width: calc(33% - 6px);
-      position: relative;
-      aspect-ratio: 1;
-      border-radius: 10px;
-      overflow: hidden;
-      border: 2px solid #FFB5C8;
-      background: #f0f0f0;
+      width: calc(33% - 6px); position: relative; aspect-ratio: 1;
+      border-radius: 10px; overflow: hidden; border: 2px solid var(--border); background: var(--debug-bg);
     }
     .preview-item img { width: 100%; height: 100%; object-fit: cover; }
     .status-tag {
-      position: absolute;
-      bottom: 4px;
-      left: 4px;
-      border-radius: 4px;
-      padding: 2px 5px;
-      font-size: 9px;
-      font-weight: bold;
+      position: absolute; bottom: 4px; left: 4px; border-radius: 4px;
+      padding: 2px 5px; font-size: 9px; font-weight: bold;
     }
     .group-tag {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      background: rgba(212,83,126,0.85);
-      color: white;
-      font-size: 9px;
-      border-radius: 4px;
-      padding: 2px 5px;
-      font-weight: bold;
+      position: absolute; top: 4px; right: 4px; background: rgba(212,83,126,0.85);
+      color: white; font-size: 9px; border-radius: 4px; padding: 2px 5px; font-weight: bold;
+    }
+    .retry-btn {
+      position: absolute; top: 4px; left: 4px; background: rgba(200,0,0,0.8);
+      color: white; border: none; border-radius: 4px; padding: 2px 6px;
+      font-size: 9px; cursor: pointer; font-weight: bold;
     }
     .tag-wait      { background: rgba(255,200,0,0.85); color: #7A5000; }
     .tag-uploading { background: rgba(0,120,255,0.85); color: white; }
     .tag-done      { background: rgba(0,180,80,0.85); color: white; }
     .tag-fail      { background: rgba(220,0,0,0.85); color: white; }
+    .tag-offline   { background: rgba(150,80,200,0.85); color: white; }
     .count-badge {
-      background: #FFB5C8;
-      color: #D4607E;
-      border-radius: 50px;
-      padding: 5px 16px;
-      font-size: 13px;
-      font-weight: bold;
-      margin-bottom: 14px;
+      background: var(--badge-bg); color: var(--badge-color); border-radius: 50px;
+      padding: 5px 16px; font-size: 13px; font-weight: bold; margin-bottom: 14px;
     }
-    .upload-progress {
-      width: 100%;
-      max-width: 400px;
-      background: #eee;
-      border-radius: 50px;
-      height: 8px;
-      margin-bottom: 12px;
-      overflow: hidden;
+    .progress-wrap { width: 100%; max-width: 400px; margin-bottom: 8px; }
+    .progress-info {
+      display: flex; justify-content: space-between; font-size: 11px;
+      color: var(--subtext); margin-bottom: 4px;
     }
-    .upload-fill {
-      background: #B5EAD7;
-      height: 100%;
-      border-radius: 50px;
-      transition: width 0.5s;
-      width: 0%;
-    }
+    .upload-progress { width: 100%; background: var(--progress-bg); border-radius: 50px; height: 8px; overflow: hidden; }
+    .upload-fill { background: var(--progress-fill); height: 100%; border-radius: 50px; transition: width 0.5s; width: 0%; }
     .status {
-      color: #888;
-      font-size: 12px;
-      margin-top: 6px;
-      text-align: center;
-      min-height: 18px;
-      padding: 0 10px;
-      white-space: pre-line;
+      color: var(--subtext); font-size: 12px; margin-top: 6px; text-align: center;
+      min-height: 18px; padding: 0 10px; white-space: pre-line;
     }
     #file-input { display: none; }
   </style>
 </head>
 <body>
 
-<h2>📷 LINE 拍照備份</h2>
+<div class="top-bar">
+  <h2>📷 LINE 拍照備份</h2>
+  <button class="dark-toggle" onclick="toggleDark()">🌙 深色</button>
+</div>
 <p class="subtitle">照片將依 GPS 自動存入對應地區</p>
 
+<div class="offline-banner" id="offline-banner">⚠️ 目前離線，照片已暫存，恢復網路後自動上傳</div>
 <div class="gps-box" id="gps-box">📡 正在讀取 GPS 座標...</div>
+
+<div id="map-container">
+  <div class="map-label">🗺️ 目前位置與地區範圍</div>
+  <div id="map"></div>
+</div>
 
 <div class="select-box">
   <span class="select-label">📌 選擇地區（可手動指定，否則依 GPS 自動比對）</span>
@@ -209,80 +168,234 @@
 <div class="area-box" id="area-box"></div>
 <div class="upload-queue-box" id="queue-box"></div>
 <div class="debug-box" id="debug-box"></div>
+<div class="history-box" id="history-box"></div>
 
 <div class="count-badge" id="count-badge">已拍 0 張 | 第 1 組</div>
 <div class="preview-area" id="preview-area"></div>
 
-<div class="upload-progress">
-  <div class="upload-fill" id="upload-fill"></div>
+<div class="progress-wrap">
+  <div class="progress-info">
+    <span id="progress-text">等待上傳...</span>
+    <span id="progress-pct">0%</span>
+  </div>
+  <div class="upload-progress">
+    <div class="upload-fill" id="upload-fill"></div>
+  </div>
 </div>
 
-<button class="btn btn-camera" id="btn-camera" onclick="openCamera()">📷 拍照 / 選取照片</button>
-<button class="btn btn-prev" id="btn-prev" onclick="prevGroup()" style="display:none">⬅️ 上一組</button>
-<button class="btn btn-next" id="btn-next" onclick="nextGroup()">➡️ 下一組</button>
-<button class="btn btn-end" id="btn-end" onclick="endSession()">⏹ 結束</button>
+<button class="btn btn-camera"  id="btn-camera"  onclick="openCamera()">📷 拍照 / 選取照片</button>
+<button class="btn btn-retry"   id="btn-retry"   onclick="retryAllFailed()" style="display:none">🔄 重新上傳失敗照片</button>
+<button class="btn btn-prev"    id="btn-prev"    onclick="prevGroup()" style="display:none">⬅️ 上一組</button>
+<button class="btn btn-next"    id="btn-next"    onclick="nextGroup()">➡️ 下一組</button>
+<button class="btn btn-history" id="btn-history" onclick="toggleHistory()" style="display:none">📋 上傳歷史記錄</button>
+<button class="btn btn-end"     id="btn-end"     onclick="endSession()">⏹ 結束</button>
 
 <input type="file" id="file-input" accept="image/*" capture="environment" multiple onchange="handleFiles(this.files)">
-
 <p class="status" id="status">等待 GPS 讀取中...</p>
 
 <script>
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwrY778WWRU5RMgzvCBnULhuyZKJL4g1otEm8-QQGrD546K_0KZBiqqR2TSyNAampcy/exec';
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbymsCaADLN3oPDSzlKHDTHq8vvAc92VfmBM6prpaa5g_0h0cxdVKc-Yg6eqp2zC_Z8z/exec';
   var LIFF_ID = '2009652153-mnWgVOub';
 
   var currentLocation = null;
-  var sessionData = {};
-  var groupCount = 1;
+  var sessionData     = {};
+  var groupCount      = 1;
   var totalPhotoCount = 0;
-  var uploadQueue = [];
-  var isUploading = false;
-  var uploadedCount = 0;
-  var failedCount = 0;
-  var previewItems = [];
-  var selectedArea = '';
+  var uploadQueue     = [];
+  var failedItems     = [];
+  var isUploading     = false;
+  var uploadedCount   = 0;
+  var failedCount     = 0;
+  var previewItems    = [];
+  var selectedArea    = '';
+  var isDark          = false;
+  var isOnline        = navigator.onLine;
+  var offlineQueue    = [];
+  var uploadHistory   = [];
+  var mapObj          = null;
+  var mapMarker       = null;
+  var mapCircles      = [];
+  var areaDataList    = [];
 
+  // ===== 深色模式 =====
+  function toggleDark() {
+    isDark = !isDark;
+    document.body.classList.toggle('dark', isDark);
+    document.querySelector('.dark-toggle').textContent = isDark ? '☀️ 淺色' : '🌙 深色';
+    localStorage.setItem('darkMode', isDark ? '1' : '0');
+  }
+
+  // ===== 離線偵測 =====
+  window.addEventListener('online', function() {
+    isOnline = true;
+    document.getElementById('offline-banner').style.display = 'none';
+    setStatus('網路已恢復，開始上傳暫存照片...');
+    flushOfflineQueue();
+  });
+  window.addEventListener('offline', function() {
+    isOnline = false;
+    document.getElementById('offline-banner').style.display = 'block';
+    setStatus('⚠️ 已離線，照片將暫存');
+  });
+
+  // ===== 工具函式 =====
   function showDebug(msg) {
     var box = document.getElementById('debug-box');
     box.style.display = 'block';
     box.textContent = msg;
   }
-
-  function setStatus(msg) {
-    document.getElementById('status').textContent = msg;
+  function setStatus(msg) { document.getElementById('status').textContent = msg; }
+  function getToday() {
+    var now = new Date();
+    return now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
   }
 
-  function updateQueueBox() {
-    var total = uploadQueue.length + uploadedCount + failedCount;
+  // ===== 進度條 =====
+  function updateProgress() {
+    var total = uploadedCount + failedCount + uploadQueue.length + offlineQueue.length;
     if (total === 0) {
-      document.getElementById('queue-box').style.display = 'none';
+      document.getElementById('progress-text').textContent = '等待上傳...';
+      document.getElementById('progress-pct').textContent = '0%';
+      document.getElementById('upload-fill').style.width = '0%';
       return;
     }
+    var done = uploadedCount + failedCount;
+    var pct  = Math.round(done / total * 100);
+    document.getElementById('progress-text').textContent =
+      isUploading ? ('上傳中 第 ' + done + ' / ' + total + ' 張') : ('已完成 ' + done + ' / ' + total + ' 張');
+    document.getElementById('progress-pct').textContent = pct + '%';
+    document.getElementById('upload-fill').style.width = pct + '%';
+  }
+
+  // ===== 佇列狀態 =====
+  function updateQueueBox() {
+    var total = uploadQueue.length + uploadedCount + failedCount + offlineQueue.length;
+    if (total === 0) { document.getElementById('queue-box').style.display = 'none'; return; }
     document.getElementById('queue-box').style.display = 'block';
     document.getElementById('queue-box').textContent =
-      '後台上傳狀態\n' +
-      '已完成：' + uploadedCount + ' 張\n' +
-      '等待中：' + uploadQueue.length + ' 張' +
+      '後台上傳狀態\n已完成：' + uploadedCount + ' 張\n等待中：' + uploadQueue.length + ' 張' +
+      (offlineQueue.length > 0 ? '\n離線暫存：' + offlineQueue.length + ' 張' : '') +
       (failedCount > 0 ? '\n失敗：' + failedCount + ' 張' : '');
-    var pct = total > 0 ? Math.round((uploadedCount + failedCount) / total * 100) : 0;
-    document.getElementById('upload-fill').style.width = pct + '%';
+    updateProgress();
+    document.getElementById('btn-retry').style.display = failedCount > 0 ? 'block' : 'none';
   }
 
   function updatePrevButton() {
     document.getElementById('btn-prev').style.display = groupCount > 1 ? 'block' : 'none';
   }
 
-  function onAreaSelected() {
-    selectedArea = document.getElementById('area-select').value;
-    if (selectedArea) {
-      setStatus('已選擇地區：' + selectedArea + '\n點擊拍照開始上傳');
-      syncGroupCount();
+  // ===== 地圖 =====
+  function initMap(lat, lng) {
+    if (typeof google === 'undefined') return;
+    document.getElementById('map-container').style.display = 'block';
+    var center = { lat: parseFloat(lat), lng: parseFloat(lng) };
+    if (!mapObj) {
+      mapObj = new google.maps.Map(document.getElementById('map'), {
+        center: center, zoom: 15, disableDefaultUI: true, zoomControl: true
+      });
     } else {
-      setStatus('自動比對模式，依 GPS 判斷地區');
-      syncGroupCount();
+      mapObj.setCenter(center);
+    }
+    if (mapMarker) {
+      mapMarker.setPosition(center);
+    } else {
+      mapMarker = new google.maps.Marker({
+        position: center, map: mapObj, title: '目前位置',
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE, scale: 8,
+          fillColor: '#D4607E', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 2
+        }
+      });
+    }
+    mapCircles.forEach(function(c) { c.setMap(null); });
+    mapCircles = [];
+    areaDataList.forEach(function(area) {
+      if (!area.coords) return;
+      var parts = area.coords.split(',');
+      if (parts.length < 2) return;
+      var aLat = parseFloat(parts[0].trim());
+      var aLng = parseFloat(parts[1].trim());
+      var aRange = parseInt(area.range);
+      if (isNaN(aLat) || isNaN(aLng) || isNaN(aRange)) return;
+      mapCircles.push(new google.maps.Circle({
+        map: mapObj, center: { lat: aLat, lng: aLng }, radius: aRange,
+        fillColor: '#FFB5C8', fillOpacity: 0.25, strokeColor: '#D4607E', strokeWeight: 2
+      }));
+      new google.maps.Marker({
+        position: { lat: aLat, lng: aLng }, map: mapObj, title: area.name,
+        label: { text: area.name, fontSize: '11px', color: '#D4607E' }
+      });
+    });
+  }
+
+  // ===== 距離計算 =====
+  function calcDistance(lat1, lng1, lat2, lng2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLng = (lng2 - lng1) * Math.PI / 180;
+    var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+    return Math.round(6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+  }
+
+  function updateGpsDistances() {
+    if (!currentLocation || areaDataList.length === 0) return;
+    var lat = parseFloat(currentLocation.lat);
+    var lng = parseFloat(currentLocation.lng);
+    var select = document.getElementById('area-select');
+    for (var i = 1; i < select.options.length; i++) {
+      var area = areaDataList[i - 1];
+      if (!area || !area.coords) continue;
+      var parts = area.coords.split(',');
+      if (parts.length < 2) continue;
+      var aLat = parseFloat(parts[0].trim());
+      var aLng = parseFloat(parts[1].trim());
+      var dist = calcDistance(lat, lng, aLat, aLng);
+      var aRange = parseInt(area.range);
+      var inRange = !isNaN(aRange) && dist <= aRange;
+      select.options[i].textContent = area.name + '（' + area.range + '）— ' +
+        (dist >= 1000 ? (dist/1000).toFixed(1) + 'km' : dist + 'm') +
+        (inRange ? ' ✅' : '');
     }
   }
 
+  // ===== 上傳歷史 =====
+  function toggleHistory() {
+    var box = document.getElementById('history-box');
+    if (box.style.display === 'none' || box.style.display === '') {
+      renderHistory();
+      box.style.display = 'block';
+      document.getElementById('btn-history').textContent = '📋 隱藏歷史記錄';
+    } else {
+      box.style.display = 'none';
+      document.getElementById('btn-history').textContent = '📋 上傳歷史記錄';
+    }
+  }
+
+  function renderHistory() {
+    var box = document.getElementById('history-box');
+    if (uploadHistory.length === 0) {
+      box.innerHTML = '📋 本次尚無上傳記錄';
+      return;
+    }
+    var html = '📋 本次上傳歷史（共 ' + uploadHistory.length + ' 張）\n\n';
+    uploadHistory.forEach(function(h, i) {
+      html += '【第 ' + (i+1) + ' 張】第' + h.group + '組 · ' + h.area + ' · ' + h.time + '\n';
+      html += '📂 ' + h.folderName + '\n';
+      if (h.folderUrl) {
+        html += '<a href="' + h.folderUrl + '" target="_blank">🔗 開啟資料夾</a>\n';
+      }
+      html += '\n';
+    });
+    box.innerHTML = html;
+  }
+
+  // ===== LIFF 初始化 =====
   async function initLiff() {
+    if (localStorage.getItem('darkMode') === '1') toggleDark();
     try {
       setStatus('初始化 LIFF...');
       await liff.init({ liffId: LIFF_ID });
@@ -292,25 +405,24 @@
       setStatus('已登入，正在載入...');
       await loadAreaList();
       startWatchingLocation();
+      restoreOfflineQueue();
     } catch(err) {
       setStatus('初始化失敗：' + err.message);
       showDebug('LIFF 錯誤：' + err.toString());
     }
   }
 
+  // ===== 載入地區清單 =====
   async function loadAreaList() {
     try {
       var response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'get_area_list',
-          userId: sessionData.userId
-        })
+        body: JSON.stringify({ action: 'get_area_list', userId: sessionData.userId })
       });
-      var text = await response.text();
-      var data = JSON.parse(text);
+      var data = JSON.parse(await response.text());
       if (data.areas && data.areas.length > 0) {
+        areaDataList = data.areas;
         var select = document.getElementById('area-select');
         data.areas.forEach(function(area) {
           var option = document.createElement('option');
@@ -324,6 +436,7 @@
     }
   }
 
+  // ===== GPS 監聽 =====
   function startWatchingLocation() {
     if (!navigator.geolocation) {
       document.getElementById('gps-box').textContent = '⚠️ 此裝置不支援 GPS\n照片將存入「其他」資料夾';
@@ -340,11 +453,12 @@
           accuracy: Math.round(position.coords.accuracy)
         };
         document.getElementById('gps-box').textContent =
-          '📍 GPS 已讀取\n' +
-          '緯度：' + currentLocation.lat + '\n' +
-          '經度：' + currentLocation.lng + '\n' +
-          '精度：+/-' + currentLocation.accuracy + ' 公尺';
+          '📍 GPS 已讀取\n緯度：' + currentLocation.lat +
+          '\n經度：' + currentLocation.lng +
+          '\n精度：+/-' + currentLocation.accuracy + ' 公尺';
         setStatus('準備好了！請點擊拍照');
+        updateGpsDistances();
+        initMap(currentLocation.lat, currentLocation.lng);
         if (!synced) { synced = true; syncGroupCount(); }
       },
       function(err) {
@@ -357,74 +471,99 @@
     );
   }
 
+  // ===== 同步組別 =====
   async function syncGroupCount() {
     try {
-      var today = getToday();
       var response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'get_group_count',
           userId: sessionData.userId,
-          today: today,
+          today: getToday(),
           selectedArea: selectedArea || null,
           photoLat: currentLocation ? currentLocation.lat : null,
           photoLng: currentLocation ? currentLocation.lng : null
         })
       });
-      var text = await response.text();
-      var data = JSON.parse(text);
-      if (data.groupCount) {
-        groupCount = data.groupCount;
-        updateCount();
-        updatePrevButton();
-      }
+      var data = JSON.parse(await response.text());
+      if (data.groupCount) { groupCount = data.groupCount; updateCount(); updatePrevButton(); }
       setStatus('準備好了！請點擊拍照');
     } catch(err) {
       setStatus('準備好了！請點擊拍照');
     }
   }
 
-  function openCamera() {
-    document.getElementById('file-input').click();
+  function onAreaSelected() {
+    selectedArea = document.getElementById('area-select').value;
+    setStatus(selectedArea ? '已選擇地區：' + selectedArea + '\n點擊拍照開始上傳' : '自動比對模式，依 GPS 判斷地區');
+    syncGroupCount();
   }
 
-  function getToday() {
-    var now = new Date();
-    var y = now.getFullYear();
-    var m = String(now.getMonth() + 1).padStart(2, '0');
-    var d = String(now.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + d;
-  }
+  function openCamera() { document.getElementById('file-input').click(); }
 
+  // ===== 處理照片 =====
   function handleFiles(files) {
-    var today = getToday();
+    var today    = getToday();
     var location = currentLocation ? { lat: currentLocation.lat, lng: currentLocation.lng } : null;
     for (var i = 0; i < files.length; i++) {
       totalPhotoCount++;
-      var photoIndex = totalPhotoCount;
+      var photoIndex   = totalPhotoCount;
       var currentGroup = groupCount;
       addPreview(files[i], photoIndex, currentGroup);
-      uploadQueue.push({
-        file: files[i],
-        index: photoIndex,
-        location: location,
-        today: today,
-        groupCount: currentGroup,
+      var item = {
+        file: files[i], index: photoIndex, location: location,
+        today: today, groupCount: currentGroup,
         selectedArea: selectedArea || null,
         previewIndex: previewItems.length - 1
-      });
+      };
+      if (!isOnline) {
+        offlineQueue.push(item);
+        updatePreviewTag(item.previewIndex, 'offline', '離線');
+        saveOfflineQueue();
+      } else {
+        uploadQueue.push(item);
+      }
     }
     updateCount();
     updateQueueBox();
-    setStatus('已加入 ' + files.length + ' 張\n後台自動上傳中，可繼續拍照');
-    if (!isUploading) { processQueue(); }
+    if (!isOnline) {
+      setStatus('⚠️ 離線中，已暫存 ' + files.length + ' 張\n恢復網路後自動上傳');
+    } else {
+      setStatus('已加入 ' + files.length + ' 張\n後台自動上傳中，可繼續拍照');
+      if (!isUploading) { processQueue(); }
+    }
     document.getElementById('file-input').value = '';
   }
 
+  // ===== 離線暫存 =====
+  function saveOfflineQueue() {
+    localStorage.setItem('offlineQueueCount', offlineQueue.length.toString());
+  }
+  function restoreOfflineQueue() {
+    var count = parseInt(localStorage.getItem('offlineQueueCount') || '0');
+    if (count > 0) {
+      setStatus('⚠️ 偵測到上次有 ' + count + ' 張未上傳\n請重新選取照片上傳');
+      localStorage.removeItem('offlineQueueCount');
+    }
+  }
+  async function flushOfflineQueue() {
+    if (offlineQueue.length === 0) return;
+    var items = offlineQueue.slice();
+    offlineQueue = [];
+    saveOfflineQueue();
+    items.forEach(function(item) {
+      uploadQueue.push(item);
+      updatePreviewTag(item.previewIndex, 'wait', '等待');
+    });
+    updateQueueBox();
+    if (!isUploading) { processQueue(); }
+  }
+
+  // ===== 預覽縮圖 =====
   function addPreview(file, index, group) {
     var itemIndex = previewItems.length;
-    previewItems.push({index: index, status: 'wait'});
+    previewItems.push({ index: index, status: 'wait', file: file });
     var item = document.createElement('div');
     item.className = 'preview-item';
     item.id = 'preview-' + itemIndex;
@@ -453,33 +592,69 @@
     if (!tag) return;
     tag.className = 'status-tag tag-' + status;
     tag.textContent = text;
+    var retryBtn = document.getElementById('retry-btn-' + itemIndex);
+    if (status === 'fail') {
+      if (!retryBtn) {
+        var btn = document.createElement('button');
+        btn.className = 'retry-btn';
+        btn.id = 'retry-btn-' + itemIndex;
+        btn.textContent = '重試';
+        btn.onclick = (function(idx) { return function() { retrySingle(idx); }; })(itemIndex);
+        document.getElementById('preview-' + itemIndex).appendChild(btn);
+      }
+    } else {
+      if (retryBtn) retryBtn.remove();
+    }
   }
 
   function updateCount() {
-    document.getElementById('count-badge').textContent =
-      '已拍 ' + totalPhotoCount + ' 張 | 第 ' + groupCount + ' 組';
+    document.getElementById('count-badge').textContent = '已拍 ' + totalPhotoCount + ' 張 | 第 ' + groupCount + ' 組';
   }
 
+  // ===== 上傳佇列 =====
   async function processQueue() {
     if (isUploading || uploadQueue.length === 0) return;
     isUploading = true;
     while (uploadQueue.length > 0) {
       var item = uploadQueue.shift();
       updatePreviewTag(item.previewIndex, 'uploading', '上傳中');
-      var success = await uploadPhoto(item);
-      if (success) {
+      updateProgress();
+      var result = await uploadPhoto(item);
+      if (result.success) {
         uploadedCount++;
         updatePreviewTag(item.previewIndex, 'done', '完成');
+        if (result.folderUrl) {
+          uploadHistory.push({
+            index: item.index, group: item.groupCount,
+            area: result.areaName || '其他',
+            folderUrl: result.folderUrl,
+            folderName: result.folderName || '',
+            time: new Date().toLocaleTimeString('zh-TW')
+          });
+          document.getElementById('btn-history').style.display = 'block';
+          document.getElementById('area-box').style.display = 'block';
+          document.getElementById('area-box').innerHTML =
+            (result.areaName
+              ? '📌 匹配地區：' + result.areaName + '\n' +
+                (result.distance ? '📏 距離：' + result.distance + ' 公尺\n' : '')
+              : '📂 存入「其他」資料夾\n') +
+            '📂 ' + result.folderName + '\n' +
+            '🔢 目前組別：' + (result.currentGroup || '') + '\n' +
+            '<a href="' + result.folderUrl + '" target="_blank">🔗 開啟 Google Drive 資料夾</a>';
+        }
       } else {
         failedCount++;
         updatePreviewTag(item.previewIndex, 'fail', '失敗');
+        failedItems.push(item);
       }
       updateQueueBox();
     }
     isUploading = false;
     setStatus('✅ 所有照片上傳完成！\n共 ' + uploadedCount + ' 張成功' + (failedCount > 0 ? '，' + failedCount + ' 張失敗' : ''));
+    updateProgress();
   }
 
+  // ===== 單張上傳 =====
   async function uploadPhoto(item) {
     return new Promise(function(resolve) {
       var reader = new FileReader();
@@ -490,47 +665,62 @@
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
-              action: 'upload_photo',
-              userId: sessionData.userId,
-              index: item.index,
-              groupCount: item.groupCount,
-              today: item.today,
-              imageData: base64,
+              action:       'upload_photo',
+              userId:       sessionData.userId,
+              index:        item.index,
+              groupCount:   item.groupCount,
+              today:        item.today,
+              imageData:    base64,
               selectedArea: item.selectedArea,
-              photoLat: item.location ? item.location.lat : null,
-              photoLng: item.location ? item.location.lng : null
+              photoLat:     item.location ? item.location.lat : null,
+              photoLng:     item.location ? item.location.lng : null
             })
           });
           var text = await response.text();
           try {
             var data = JSON.parse(text);
-            if (data.areaName) {
-              document.getElementById('area-box').style.display = 'block';
-              document.getElementById('area-box').textContent =
-                '📌 匹配地區：' + data.areaName + '\n' +
-                (data.distance ? '📏 距離：' + data.distance + ' 公尺\n' : '') +
-                '📂 ' + data.folderName + '\n' +
-                '🔢 目前組別：' + (data.currentGroup || '');
-            } else if (data.folderName) {
-              document.getElementById('area-box').style.display = 'block';
-              document.getElementById('area-box').textContent =
-                '📂 存入「其他」資料夾\n' + data.folderName + '\n' +
-                '🔢 目前組別：' + (data.currentGroup || '');
-            }
+            resolve({ success: true, areaName: data.areaName, distance: data.distance,
+              folderName: data.folderName, folderUrl: data.folderUrl, currentGroup: data.currentGroup });
           } catch(pe) {
             showDebug('解析失敗：' + text);
+            resolve({ success: false });
           }
-          resolve(true);
         } catch(err) {
           showDebug('上傳失敗：' + err.toString());
-          resolve(false);
+          resolve({ success: false });
         }
       };
-      reader.onerror = function() { resolve(false); };
+      reader.onerror = function() { resolve({ success: false }); };
       reader.readAsDataURL(item.file);
     });
   }
 
+  // ===== 單張重試 =====
+  function retrySingle(previewIndex) {
+    var item = failedItems.find(function(it) { return it.previewIndex === previewIndex; });
+    if (!item) return;
+    failedItems = failedItems.filter(function(it) { return it.previewIndex !== previewIndex; });
+    failedCount--;
+    uploadQueue.push(item);
+    updatePreviewTag(previewIndex, 'wait', '等待');
+    updateQueueBox();
+    if (!isUploading) { processQueue(); }
+  }
+
+  // ===== 全部失敗重試 =====
+  function retryAllFailed() {
+    if (failedItems.length === 0) return;
+    failedItems.forEach(function(item) {
+      uploadQueue.push(item);
+      updatePreviewTag(item.previewIndex, 'wait', '等待');
+    });
+    failedCount = 0;
+    failedItems = [];
+    updateQueueBox();
+    if (!isUploading) { processQueue(); }
+  }
+
+  // ===== 上一組 / 下一組 =====
   function prevGroup() {
     if (groupCount <= 1) return;
     groupCount--;
@@ -548,6 +738,7 @@
     document.getElementById('area-box').style.display = 'none';
   }
 
+  // ===== 結束 =====
   async function endSession() {
     setStatus('結束中...');
     try {
@@ -555,10 +746,10 @@
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          action: 'end_session',
-          userId: sessionData.userId,
-          groupCount: groupCount,
-          totalCount: totalPhotoCount
+          action:      'end_session',
+          userId:      sessionData.userId,
+          groupCount:  groupCount,
+          totalCount:  totalPhotoCount
         })
       });
     } catch(err) {
