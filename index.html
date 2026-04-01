@@ -98,21 +98,35 @@
     .preview-item {
       width: calc(33% - 6px);
       position: relative;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid #FFB5C8;
+      background: #f0f0f0;
     }
     .preview-item img {
       width: 100%;
-      aspect-ratio: 1;
+      height: 100%;
       object-fit: cover;
-      border-radius: 10px;
-      border: 2px solid #FFB5C8;
     }
-    .preview-item .status-tag {
+    .status-tag {
       position: absolute;
       bottom: 4px;
       left: 4px;
       border-radius: 4px;
       padding: 2px 5px;
       font-size: 9px;
+      font-weight: bold;
+    }
+    .group-tag {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(212,83,126,0.85);
+      color: white;
+      font-size: 9px;
+      border-radius: 4px;
+      padding: 2px 5px;
       font-weight: bold;
     }
     .tag-wait { background: rgba(255,200,0,0.85); color: #7A5000; }
@@ -166,7 +180,7 @@
 <div class="upload-queue-box" id="queue-box"></div>
 <div class="debug-box" id="debug-box"></div>
 
-<div class="count-badge" id="count-badge">已拍 0 張</div>
+<div class="count-badge" id="count-badge">已拍 0 張 | 第 1 組</div>
 <div class="preview-area" id="preview-area"></div>
 
 <div class="upload-progress">
@@ -189,14 +203,10 @@
   var sessionData = {};
   var groupCount = 1;
   var totalPhotoCount = 0;
-
-  // 上傳佇列
   var uploadQueue = [];
   var isUploading = false;
   var uploadedCount = 0;
   var failedCount = 0;
-
-  // 照片預覽清單
   var previewItems = [];
 
   function showDebug(msg) {
@@ -219,8 +229,8 @@
     document.getElementById('queue-box').textContent =
       '後台上傳狀態\n' +
       '已完成：' + uploadedCount + ' 張\n' +
-      '等待中：' + uploadQueue.length + ' 張\n' +
-      (failedCount > 0 ? '失敗：' + failedCount + ' 張\n' : '');
+      '等待中：' + uploadQueue.length + ' 張' +
+      (failedCount > 0 ? '\n失敗：' + failedCount + ' 張' : '');
     var pct = total > 0 ? Math.round((uploadedCount + failedCount) / total * 100) : 0;
     document.getElementById('upload-fill').style.width = pct + '%';
   }
@@ -244,8 +254,10 @@
     if (!navigator.geolocation) {
       document.getElementById('gps-box').textContent = '⚠️ 此裝置不支援 GPS\n照片將存入「其他」資料夾';
       setStatus('無 GPS，仍可拍照');
+      syncGroupCount();
       return;
     }
+    var synced = false;
     navigator.geolocation.watchPosition(
       function(position) {
         currentLocation = {
@@ -259,14 +271,47 @@
           '經度：' + currentLocation.lng + '\n' +
           '精度：+/-' + currentLocation.accuracy + ' 公尺';
         setStatus('準備好了！請點擊拍照');
+        if (!synced) {
+          synced = true;
+          syncGroupCount();
+        }
       },
       function(err) {
         document.getElementById('gps-box').textContent =
           '⚠️ GPS 讀取失敗\n' + err.message + '\n照片將存入「其他」資料夾';
         setStatus('無 GPS，仍可拍照');
+        syncGroupCount();
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
+  }
+
+  async function syncGroupCount() {
+    try {
+      setStatus('正在讀取當日組數...');
+      var today = getToday();
+      var response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'get_group_count',
+          userId: sessionData.userId,
+          today: today,
+          photoLat: currentLocation ? currentLocation.lat : null,
+          photoLng: currentLocation ? currentLocation.lng : null
+        })
+      });
+      var text = await response.text();
+      var data = JSON.parse(text);
+      if (data.groupCount) {
+        groupCount = data.groupCount;
+        updateCount();
+      }
+      setStatus('準備好了！請點擊拍照');
+    } catch(err) {
+      setStatus('準備好了！請點擊拍照');
+      showDebug('同步組數失敗：' + err.toString());
+    }
   }
 
   function openCamera() {
@@ -292,55 +337,58 @@
       totalPhotoCount++;
       var photoIndex = totalPhotoCount;
       var file = files[i];
+      var currentGroup = groupCount;
 
-      // 加入預覽
-      addPreview(file, photoIndex);
+      addPreview(file, photoIndex, currentGroup);
 
-      // 加入上傳佇列
       uploadQueue.push({
         file: file,
         index: photoIndex,
         location: location,
         today: today,
-        groupCount: groupCount,
+        groupCount: currentGroup,
         previewIndex: previewItems.length - 1
       });
     }
 
     updateCount();
     updateQueueBox();
-    setStatus('已加入 ' + files.length + ' 張到上傳佇列\n可繼續拍照，後台自動上傳中');
+    setStatus('已加入 ' + files.length + ' 張\n後台自動上傳中，可繼續拍照');
 
-    // 啟動後台上傳
     if (!isUploading) {
       processQueue();
     }
 
-    // 清空 file input 讓同一張可重複選
     document.getElementById('file-input').value = '';
   }
 
-  function addPreview(file, index) {
-    var reader = new FileReader();
+  function addPreview(file, index, group) {
     var itemIndex = previewItems.length;
     previewItems.push({index: index, status: 'wait'});
 
-    reader.onload = function(e) {
-      var item = document.createElement('div');
-      item.className = 'preview-item';
-      item.id = 'preview-' + itemIndex;
+    var item = document.createElement('div');
+    item.className = 'preview-item';
+    item.id = 'preview-' + itemIndex;
 
+    var tag = document.createElement('div');
+    tag.className = 'status-tag tag-wait';
+    tag.id = 'tag-' + itemIndex;
+    tag.textContent = '讀取中';
+    item.appendChild(tag);
+
+    var groupTag = document.createElement('div');
+    groupTag.className = 'group-tag';
+    groupTag.textContent = '第' + group + '組';
+    item.appendChild(groupTag);
+
+    document.getElementById('preview-area').appendChild(item);
+
+    var reader = new FileReader();
+    reader.onload = function(e) {
       var img = document.createElement('img');
       img.src = e.target.result;
-      item.appendChild(img);
-
-      var tag = document.createElement('div');
-      tag.className = 'status-tag tag-wait';
-      tag.id = 'tag-' + itemIndex;
+      item.insertBefore(img, item.firstChild);
       tag.textContent = '等待';
-      item.appendChild(tag);
-
-      document.getElementById('preview-area').appendChild(item);
     };
     reader.readAsDataURL(file);
   }
@@ -360,12 +408,10 @@
   async function processQueue() {
     if (isUploading || uploadQueue.length === 0) return;
     isUploading = true;
-
     while (uploadQueue.length > 0) {
       var item = uploadQueue.shift();
       var previewIdx = item.previewIndex;
       updatePreviewTag(previewIdx, 'uploading', '上傳中');
-
       var success = await uploadPhoto(item);
       if (success) {
         uploadedCount++;
@@ -376,7 +422,6 @@
       }
       updateQueueBox();
     }
-
     isUploading = false;
     setStatus('✅ 所有照片上傳完成！\n共 ' + uploadedCount + ' 張成功' + (failedCount > 0 ? '，' + failedCount + ' 張失敗' : ''));
   }
@@ -409,11 +454,13 @@
               document.getElementById('area-box').textContent =
                 '📌 匹配地區：' + data.areaName + '\n' +
                 '📏 距離：' + data.distance + ' 公尺\n' +
-                '📂 ' + data.folderName;
+                '📂 ' + data.folderName + '\n' +
+                '🔢 目前組別：' + (data.currentGroup || '');
             } else if (data.folderName) {
               document.getElementById('area-box').style.display = 'block';
               document.getElementById('area-box').textContent =
-                '📂 存入「其他」資料夾\n' + data.folderName;
+                '📂 存入「其他」資料夾\n' + data.folderName + '\n' +
+                '🔢 目前組別：' + (data.currentGroup || '');
             }
           } catch(pe) {
             showDebug('解析失敗：' + text);
