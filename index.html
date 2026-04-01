@@ -84,6 +84,7 @@
     }
     .btn:active { opacity: 0.75; }
     .btn-camera { background: #FFB5C8; color: #D4607E; }
+    .btn-prev   { background: #C7CEEA; color: #5A65B5; display: none; }
     .btn-next   { background: #B5EAD7; color: #3A9A72; }
     .btn-end    { background: #FFDAC1; color: #D07030; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -129,10 +130,10 @@
       padding: 2px 5px;
       font-weight: bold;
     }
-    .tag-wait { background: rgba(255,200,0,0.85); color: #7A5000; }
+    .tag-wait     { background: rgba(255,200,0,0.85); color: #7A5000; }
     .tag-uploading { background: rgba(0,120,255,0.85); color: white; }
-    .tag-done { background: rgba(0,180,80,0.85); color: white; }
-    .tag-fail { background: rgba(220,0,0,0.85); color: white; }
+    .tag-done     { background: rgba(0,180,80,0.85); color: white; }
+    .tag-fail     { background: rgba(220,0,0,0.85); color: white; }
     .count-badge {
       background: #FFB5C8;
       color: #D4607E;
@@ -188,6 +189,7 @@
 </div>
 
 <button class="btn btn-camera" id="btn-camera" onclick="openCamera()">📷 拍照 / 選取照片</button>
+<button class="btn btn-prev" id="btn-prev" onclick="prevGroup()">⬅️ 上一組</button>
 <button class="btn btn-next" id="btn-next" onclick="nextGroup()">➡️ 下一組</button>
 <button class="btn btn-end" id="btn-end" onclick="endSession()">⏹ 結束</button>
 
@@ -235,6 +237,10 @@
     document.getElementById('upload-fill').style.width = pct + '%';
   }
 
+  function updatePrevButton() {
+    document.getElementById('btn-prev').style.display = groupCount > 1 ? 'block' : 'none';
+  }
+
   async function initLiff() {
     try {
       setStatus('初始化 LIFF...');
@@ -280,7 +286,10 @@
         document.getElementById('gps-box').textContent =
           '⚠️ GPS 讀取失敗\n' + err.message + '\n照片將存入「其他」資料夾';
         setStatus('無 GPS，仍可拍照');
-        syncGroupCount();
+        if (!synced) {
+          synced = true;
+          syncGroupCount();
+        }
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
     );
@@ -306,6 +315,7 @@
       if (data.groupCount) {
         groupCount = data.groupCount;
         updateCount();
+        updatePrevButton();
       }
       setStatus('準備好了！請點擊拍照');
     } catch(err) {
@@ -476,9 +486,19 @@
     });
   }
 
+  function prevGroup() {
+    if (groupCount <= 1) return;
+    groupCount--;
+    updateCount();
+    updatePrevButton();
+    setStatus('已切換回第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
+    document.getElementById('area-box').style.display = 'none';
+  }
+
   function nextGroup() {
     groupCount++;
     updateCount();
+    updatePrevButton();
     setStatus('已切換到第 ' + groupCount + ' 組\n繼續拍照，後台自動上傳');
     document.getElementById('area-box').style.display = 'none';
   }
